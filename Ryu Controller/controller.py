@@ -68,4 +68,76 @@ class SimpleSwitch(app_manager.RyuApp):
             mod = parser.OFPFlowMod(datapath=datapath, priority=priority, match=match, instructions=inst)
         datapath.send_msg(mod)
 
+    # Function to add a flow allowing TCP traffic to port 443
+    def allow_port_443_flow(self, dpid, mac_address):
+        try:
+            dpid = int(dpid)
+        except ValueError:
+            print(f"Invalid datapath ID: {dpid}")
+            return
+        datapath = self.datapaths.get(dpid)
 
+        if datapath is None:
+            return
+        
+        ofproto = datapath.ofproto
+        parser = datapath.ofproto_parser
+        
+        match = parser.OFPMatch(eth_src=mac_address, eth_type=ether_types.ETH_TYPE_IP, ip_proto=inet.IPPROTO_TCP, tcp_dst=443)
+        actions = [parser.OFPActionOutput(ofproto.OFPP_NORMAL)]
+        # Add the flow with a hard_timeout of 60 seconds
+        self.add_flow(datapath, 100, match, actions, hard_timeout=60)
+        # Set a timer to remove MAC from whitelist after hard_timeout
+        timer = Timer(60, self.remove_mac_from_whitelist, args=[mac_address])
+        timer.start()
+
+    # Function to remove a MAC address from the whitelist
+    def remove_mac_from_whitelist(self, mac_address):
+        mac = session.query(MacAddress).filter_by(mac=mac_address).first()
+        if mac is not None:
+            session.delete(mac)
+            session.commit()
+
+    # Event handler for PacketIn events (invoked when the switch receives a packet it does not have a flow for)
+    @set_ev_cls(ofp_event.EventOFPPacketIn, MAIN_DISPATCHER)
+    def _packet_in_handler(self, ev):
+        msg = ev.msg
+        datapath = msg.datapath
+        ofproto = datapath.ofproto
+        parser = datapath.ofproto_parser
+        in_port = msg.match['in_port']
+
+        pkt = packet.Packet(msg.data)
+        eth = pkt.get_protocols(ethernet.ethernet)[0]
+
+        dst = eth.dst
+        src = eth.src
+
+        # learn a mac address to avoid FLOOD next time
+        self.mac_to_port[src] = in_port
+
+        # Whitelist check
+        src_not_in_whitelist = session.query(MacAddress).filter_by(mac=src).first() is None
+
+        # If the source MAC address is not in the whitelist, block access to port 443
+        if src_not_in_whitelist:
+            match = parser.OFPMatch(eth_src=src, eth_type=ether_types.ETH_TYPE_IP, ip_proto=inet.IPPROTO_TCP, tcp_dst=443)
+            actions = []
+            self.add_flow(datapath, 10, match, actions)
+
+        # If the destination MAC address is known, get the corresponding port, otherwise flood
+        if dst in self.mac_to_port:
+            out_port = self.mac_to_port[dst]
+        else:
+            out_port = ofproto.OFPP_FLOOD
+
+        actions = [parser.OFPActionOutput(out_port)]
+
+        # install a flow to avoid packet_in next time
+        if out_port != ofproto.OFPP_FLOOD:
+            match = parser.OFPMatch(in_port=in_port, eth_dst=dst)
+            self.add_flow(datapath, 1, match, actions)
+
+        # Create a PacketOut message to send the packet
+        out = parser.OFPPacketOut(datapath=datapath, buffer_id=msg.buffer_id, in_port=in_port, actions=actions, data=msg.data)
+        datapath.send_msg(out)
