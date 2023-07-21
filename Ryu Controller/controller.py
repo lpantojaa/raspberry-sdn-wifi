@@ -9,12 +9,14 @@ from ryu.lib.packet import packet
 from ryu.lib.packet import ethernet
 from ryu.lib.packet import ether_types
 from ryu.ofproto import inet
+from ryu.app.wsgi import ControllerBase, WSGIApplication, route
 
 # Import necessary modules for database management and HTTP request handling
 from sqlalchemy import create_engine, Column, String
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
-
+from webob import Response
+import json
 from threading import Timer
 
 Base = declarative_base()
@@ -29,6 +31,25 @@ engine = create_engine('sqlite:////home/leandro/finalproject/whitelist.db')
 Session = sessionmaker(bind=engine)
 session = Session()
 
+# Define the controller for our API, to manage the flows
+class FlowManagementController(ControllerBase):
+    def __init__(self, req, link, data, **config):
+        super(FlowManagementController, self).__init__(req, link, data, **config)
+        self.app = data['app']
+
+    # Define a route to allow port 443 for a specific MAC address
+    @route('flows', '/flows/allow_port_443', methods=['POST'])
+    def allow_port_443(self, req, **kwargs):
+        try:
+            body = json.loads(req.body)
+            print(body)
+            dpid = body['dpid']
+            mac = body['mac']
+            # Call the function to add the flow that allows port 443 for the specified MAC address
+            self.app.allow_port_443_flow(dpid, mac)
+            return Response(status=200)
+        except Exception as e:
+            return Response(status=400, body=str(e))
 
 # Define the SDN application for the switch
 class SimpleSwitch(app_manager.RyuApp):
@@ -40,6 +61,9 @@ class SimpleSwitch(app_manager.RyuApp):
         self.mac_to_port = {} # Dictionary to keep track of MAC addresses and their corresponding ports
         self.datapaths = {} # Dictionary to keep track of datapaths (switches)
 
+        wsgi = kwargs['wsgi']
+        # Register the flow management controller
+        wsgi.register(FlowManagementController, {'app': self})
 
     # Event handler for switch features (invoked at the start of the connection)
     @set_ev_cls(ofp_event.EventOFPSwitchFeatures, CONFIG_DISPATCHER)
