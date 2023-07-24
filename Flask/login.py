@@ -34,6 +34,56 @@ def get_arp_table():
 
     return ip_to_mac
 
+# Route for login page and form handling
+@app.route('/', methods=['GET', 'POST'])
+def login():
+    # If form data is submitted
+    if request.method == 'POST':
+        # Get form data
+        name = request.form.get('name')
+        email = request.form.get('email')
+        card_number = request.form.get('card_number')
+        cvv = request.form.get('cvv')
+        expiry_date = request.form.get('expiry_date')
+
+        # Perform basic form data validation
+        # Invalid email address
+        if not re.match(r"[^@]+@[^@]+\.[^@]+", email):
+            flash('Invalid email address.')
+            return render_template('login.html')
+
+        # Invalid card number
+        if not re.match(r'^\d{16}$', card_number):
+            flash('Invalid card number. It should be 16 digits.')
+            return render_template('login.html')
+
+        # Invalid CVV
+        if not re.match(r'^\d{3}$', cvv):
+            flash('Invalid CVV. It should be 3 digits.')
+            return render_template('login.html')
+
+        # Invalid expiry date
+        if not re.match(r'^\d{2}/\d{2}$', expiry_date):
+            flash('Invalid expiry date. It should be in MM/YY format.')
+            return render_template('login.html')
+
+        # Check if the card's expiry date is in the future
+        current_year = datetime.now().year % 100  # Get current year (last two digits)
+        current_month = datetime.now().month  # Get current month
+        expiry_month, expiry_year = map(int, expiry_date.split('/'))  # Split expiry date into month and year
+
+        # Check if expiry year is less than current year or if the expiry year is the same and the expiry month is less than the current month
+        if expiry_year < current_year or (expiry_year == current_year and expiry_month < current_month):
+            flash('Invalid expiry date. The card has already expired.')
+            return render_template('login.html')
+
+        # Get client's IP address and MAC address
+        ip_address = request.remote_addr
+        mac_address = get_arp_table().get(ip_address)
+
+    # If no form data submitted, render login page
+    return render_template('login.html')
+
 # Run the application
 if __name__ == "__main__":
     # Start the Flask application
