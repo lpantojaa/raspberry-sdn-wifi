@@ -81,6 +81,27 @@ def login():
         ip_address = request.remote_addr
         mac_address = get_arp_table().get(ip_address)
 
+        # If MAC address is found
+        if mac_address is not None:
+            # Check if MAC address is already whitelisted
+            existing_mac = MacAddress.query.get(mac_address)
+            # If not, add it to whitelist
+            if existing_mac is None:
+                mac = MacAddress(mac=mac_address)
+                db.session.add(mac)
+                db.session.commit()
+
+                # Send API request to Ryu controller to allow traffic on port 443
+                try:
+                    response = requests.post("http://localhost:8080/flows/allow_port_443", json={"mac": mac_address, "dpid":"1"})
+                    response.raise_for_status()  # Check if request was successful
+                except requests.exceptions.RequestException as e:
+                    flash(f'Error sending request to Ryu controller: {e}')
+                    return render_template('login.html')
+            
+            # Redirect to internet access page
+            return redirect('https://10.3.141.1')
+
     # If no form data submitted, render login page
     return render_template('login.html')
 
