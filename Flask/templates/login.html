@@ -3,7 +3,24 @@
 <head>
     <title>Wifi Payment</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link href="{{ url_for('static', filename='css/bootstrap.min.css') }}" rel="stylesheet">
     <style>
+        @font-face {
+            font-family: 'Raleway';
+            src: url('{{ url_for('static', filename='fonts/Raleway-Regular.ttf') }}');
+        }
+        
+        body {
+            font-family: 'Raleway', sans-serif;
+            background: linear-gradient(to right, #36d1dc, #5b86e5);
+            color: #333;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+
         .container {
             max-width: 500px;
             width: 90%; /* Responsive width */
