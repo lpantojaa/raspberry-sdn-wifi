@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Internet Page</title>
+    <link href="{{ url_for('static', filename='css/bootstrap.min.css') }}" rel="stylesheet">
+    <style>
+        @font-face {
+            font-family: 'Raleway';
+            src: url('{{ url_for('static', filename='fonts/Raleway-Regular.ttf') }}');
+        }
+        
+        body {
+            background: linear-gradient(to right, #ff9966, #ff5e62);
+            color: white;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            font-family: 'Raleway', sans-serif;
+            text-align: center;
+        }
+        .container {
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+        }
+        h2 {
+            font-size: 7em;
+            font-weight: 5000;
+        }
+        p {
+            font-size: 3.5em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Welcome to the Internet!</h2>
+        <br><br><br>
+        <p>You are now connected to the internet. Enjoy your browsing!</p>
+    </div>
+</body>
+</html>
